@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Request
+    xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17" 
+    CombinedDecision="false"
+    ReturnPolicyIdList="false">
+
+    <!-- 1. Thông tin người thực hiện (Subject) -->
+    <Attributes Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject">
+        <!-- subject:role phải là SV -->
+        <Attribute 
+            AttributeId="subject:role"
+            IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">SV</AttributeValue>
+        </Attribute>
+        <!-- subject:id (ví dụ: SV001) -->
+        <Attribute
+            AttributeId="subject:id"
+            IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">SV001</AttributeValue>
+        </Attribute>
+    </Attributes>
+
+    <!-- 2. Thông tin tài nguyên (Resource) -->
+    <Attributes Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource">
+        <!-- resource:masv phải khớp với subject:id để được Permit -->
+        <Attribute
+            AttributeId="resource:masv"
+            IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">SV001</AttributeValue>
+        </Attribute>
+    </Attributes>
+
+    <!-- 3. Hành động (Action) -->
+    <Attributes Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action">
+        <!-- action:id phải là student.read để khớp với Target của Policy -->
+        <Attribute
+            AttributeId="action:id"
+            IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">student.read</AttributeValue>
+        </Attribute>
+    </Attributes>
+
+</Request>

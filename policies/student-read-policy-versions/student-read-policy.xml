@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PolicySet
+    xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+    PolicySetId="student-read-ucon-policy-set"
+    Version="1.2"
+    PolicyCombiningAlgId="urn:oasis:names:tc:xacml:3.0:policy-combining-algorithm:deny-unless-permit">
+
+    <Target/>
+
+    <!-- 1. POLICY CHO PHA PRE (Kiểm tra quyền trước khi truy cập) -->
+    <Policy
+        PolicyId="student-read-pre-policy"
+        Version="1.0"
+        RuleCombiningAlgId="urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-unless-permit">
+        
+        <Target>
+            <AnyOf>
+                <AllOf>
+                    <!-- Chỉ áp dụng khi action là student.read -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">student.read</AttributeValue>
+                        <AttributeDesignator
+                            Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action"
+                            AttributeId="action:id" DataType="http://www.w3.org/2001/XMLSchema#string"
+                            MustBePresent="true"/>
+                    </Match>
+                    <!-- Chỉ áp dụng khi phase là PRE -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">PRE</AttributeValue>
+                        <AttributeDesignator
+                            Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                            AttributeId="environment:phase"
+                            DataType="http://www.w3.org/2001/XMLSchema#string"
+                            MustBePresent="true"/>
+                    </Match>
+                </AllOf>
+            </AnyOf>
+        </Target>
+
+        <Rule RuleId="pre-allow-rule" Effect="Permit">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+                    <!-- Role == SV -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-is-in">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">SV</AttributeValue>
+                        <AttributeDesignator
+                            Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                            AttributeId="subject:role" DataType="http://www.w3.org/2001/XMLSchema#string"
+                            MustBePresent="true"/>
+                    </Apply>
+                    <!-- subject.id == object.masv -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                            <AttributeDesignator
+                                Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                AttributeId="subject:id"
+                                DataType="http://www.w3.org/2001/XMLSchema#string"
+                                MustBePresent="true"/>
+                        </Apply>
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                            <AttributeDesignator
+                                Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                AttributeId="resource:masv"
+                                DataType="http://www.w3.org/2001/XMLSchema#string"
+                                MustBePresent="true"/>
+                        </Apply>
+                    </Apply>
+                </Apply>
+            </Condition>
+        </Rule>
+    </Policy>
+
+    <!-- 2. POLICY CHO PHA ONGOING (Kiểm tra duy trì quyền trong khi đang truy cập) -->
+    <Policy
+        PolicyId="student-read-ongoing-policy"
+        Version="1.0"
+        RuleCombiningAlgId="urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-unless-permit">
+        
+        <Target>
+            <AnyOf>
+                <AllOf>
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">student.read</AttributeValue>
+                        <AttributeDesignator
+                            Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action"
+                            AttributeId="action:id" DataType="http://www.w3.org/2001/XMLSchema#string"
+                            MustBePresent="true"/>
+                    </Match>
+                    <!-- Chỉ áp dụng khi phase là ONGOING -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ONGOING</AttributeValue>
+                        <AttributeDesignator
+                            Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                            AttributeId="environment:phase"
+                            DataType="http://www.w3.org/2001/XMLSchema#string"
+                            MustBePresent="true"/>
+                    </Match>
+                </AllOf>
+            </AnyOf>
+        </Target>
+
+        <Rule RuleId="ongoing-allow-rule" Effect="Permit">
+            <Condition>
+                <!-- Kiểm tra tình trạng == "Đang học" -->
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                        <AttributeDesignator
+                            Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                            AttributeId="subject:tinhtrang"
+                            DataType="http://www.w3.org/2001/XMLSchema#string"
+                            MustBePresent="true"/>
+                    </Apply>
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">Đang học</AttributeValue>
+                </Apply>
+            </Condition>
+        </Rule>
+    </Policy>
+</PolicySet>

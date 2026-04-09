@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PolicySet
+    xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17 ../schemas/xacml-core-v3-schema-wd-17.xsd"
+    PolicySetId="student-read-action-only-set"
+    Version="1.0"
+    PolicyCombiningAlgId="urn:oasis:names:tc:xacml:3.0:policy-combining-algorithm:deny-unless-permit">
+
+    <Target/>
+
+    <Policy
+        PolicyId="student-read-role-only-policy"
+        Version="1.0"
+        RuleCombiningAlgId="urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-unless-permit">
+
+        <Target>
+            <AnyOf>
+                <AllOf>
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">student.read</AttributeValue>
+                        <AttributeDesignator
+                            Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action"
+                            AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
+                            DataType="http://www.w3.org/2001/XMLSchema#string"
+                            MustBePresent="true"/>
+                    </Match>
+                </AllOf>
+            </AnyOf>
+        </Target>
+
+        <Rule RuleId="always-deny" Effect="Deny"/>
+
+        <!-- <Rule RuleId="permit-student-role-sv" Effect="Permit">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">SV</AttributeValue>
+                    <AttributeDesignator
+                        Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                        AttributeId="urn:oasis:names:tc:xacml:2.0:subject:role"
+                        DataType="http://www.w3.org/2001/XMLSchema#string"
+                        MustBePresent="true"/>
+                </Apply>
+            </Condition>
+        </Rule> -->
+    </Policy>
+</PolicySet>
