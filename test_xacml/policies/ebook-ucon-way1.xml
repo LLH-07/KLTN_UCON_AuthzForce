@@ -1,0 +1,655 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CÁCH 1 - Bố cục thực dụng, ưu tiên dễ triển khai.
+  Ý tưởng:
+  - Gom theo LUỒNG NGHIỆP VỤ thay vì chỉ gom theo action thuần túy.
+  - Vẫn dùng environment:phase để biểu diễn PRE / ONGOING / POST.
+  - Dùng obligation để báo cho PEP / web app phải làm gì tiếp theo
+    (tạo session, tạo ad log, pause session, ghi usage record...).
+  - Các thuộc tính "effective_access_type", "book_entry_ad_required",
+    "periodic_ad_required", "periodic_ad_due" nên được service/backend
+    tính sẵn rồi gửi vào Request. Đây là cách thực tế nhất khi chạy với AuthzForce.
+
+  PolicySetId = root để tiện cấu hình rootPolicyRefExpression = root trên AuthzForce.
+-->
+<PolicySet
+    xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+    PolicySetId="root"
+    Version="1.0.0"
+    PolicyCombiningAlgId="urn:oasis:names:tc:xacml:3.0:policy-combining-algorithm:deny-unless-permit">
+
+    <!-- Áp dụng cho mọi request -->
+    <Target/>
+
+    <!-- ========================================================= -->
+    <!-- POLICY 1: PREVIEW MIỄN PHÍ NHƯNG GIỚI HẠN CHUNK (pre-A0)   -->
+    <!-- allowed(s, o, read_preview) => requested_chunk_no <= preview_limit(book) -->
+    <!-- ========================================================= -->
+    <Policy
+        PolicyId="policy-1-read-preview-pre"
+        Version="1.0.0"
+        RuleCombiningAlgId="urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-unless-permit">
+
+        <Target>
+            <AnyOf>
+                <AllOf>
+                    <!-- action = read_preview -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">read_preview</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action"
+                                             AttributeId="action:id"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Match>
+
+                    <!-- phase = PRE -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">PRE</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:phase"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Match>
+                </AllOf>
+            </AnyOf>
+        </Target>
+
+        <Rule RuleId="p1-permit-preview-within-limit" Effect="Permit">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:integer-less-than-or-equal">
+                    <!-- requested_chunk_no -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:integer-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:requested_chunk_no"
+                                             DataType="http://www.w3.org/2001/XMLSchema#integer"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <!-- book.preview_chunk_limit -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:integer-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                             AttributeId="resource:preview_chunk_limit"
+                                             DataType="http://www.w3.org/2001/XMLSchema#integer"
+                                             MustBePresent="true"/>
+                    </Apply>
+                </Apply>
+            </Condition>
+        </Rule>
+    </Policy>
+
+    <!-- ===================================================================== -->
+    <!-- POLICY 2 + 3 + 5: READ_FULL PHA PRE                                   -->
+    <!-- - Policy 2: đã mua / được share thì đọc full (pre-A1)                  -->
+    <!-- - Policy 3: thuê còn hạn và volume thuộc free/rental thì đọc full (A3) -->
+    <!-- - Policy 5: trước khi vào sách phải xem quảng cáo, trừ PURCHASE (pre-B0) -->
+    <!-- ===================================================================== -->
+    <Policy
+        PolicyId="policy-2-3-5-read-full-pre"
+        Version="1.0.0"
+        RuleCombiningAlgId="urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-overrides">
+
+        <Target>
+            <AnyOf>
+                <AllOf>
+                    <!-- action = read_full -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">read_full</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action"
+                                             AttributeId="action:id"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Match>
+
+                    <!-- phase = PRE -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">PRE</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:phase"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Match>
+                </AllOf>
+            </AnyOf>
+        </Target>
+
+        <!-- POLICY 5 - Nếu đủ điều kiện đọc nhưng còn thiếu quảng cáo bắt buộc thì DENY.
+             PEP/App phải tạo ad_view_log = PENDING và KHÔNG tạo reading_session. -->
+        <Rule RuleId="p5-deny-when-book-entry-ad-missing" Effect="Deny">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+
+                    <!-- full_access_authorized:
+                         (purchase_active OR shared_active) OR
+                         (rental_active AND effective_access_type in {free, rental}) -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:or">
+
+                        <!-- purchase_active OR shared_active -->
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:or">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                                     AttributeId="subject:purchase_active"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                                     AttributeId="subject:shared_active"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                        </Apply>
+
+                        <!-- rental_active AND effective_access_type in {free, rental} -->
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                                     AttributeId="subject:rental_active"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                     MustBePresent="true"/>
+                            </Apply>
+
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:or">
+                                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                                             AttributeId="resource:effective_access_type"
+                                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                                             MustBePresent="true"/>
+                                    </Apply>
+                                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">free</AttributeValue>
+                                </Apply>
+
+                                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                                             AttributeId="resource:effective_access_type"
+                                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                                             MustBePresent="true"/>
+                                    </Apply>
+                                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">rental</AttributeValue>
+                                </Apply>
+                            </Apply>
+                        </Apply>
+                    </Apply>
+
+                    <!-- required_pre_book_ad = true -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:book_entry_ad_required"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <!-- book_entry_ad_completed = false -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                                 AttributeId="environment:book_entry_ad_completed"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                 MustBePresent="true"/>
+                        </Apply>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+            <ObligationExpressions>
+                <ObligationExpression ObligationId="urn:ebook:obligation:create-book-entry-ad-log" FulfillOn="Deny">
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:ad-log-status">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">PENDING</AttributeValue>
+                    </AttributeAssignmentExpression>
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:reading-session-id">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">NULL</AttributeValue>
+                    </AttributeAssignmentExpression>
+                </ObligationExpression>
+            </ObligationExpressions>
+        </Rule>
+
+        <!-- POLICY 2 - purchase/shared access -->
+        <Rule RuleId="p2-permit-purchase-or-share-read-full" Effect="Permit">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+                    <!-- purchase_active OR shared_active -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:or">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                                 AttributeId="subject:purchase_active"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                 MustBePresent="true"/>
+                        </Apply>
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                                 AttributeId="subject:shared_active"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                 MustBePresent="true"/>
+                        </Apply>
+                    </Apply>
+
+                    <!-- quảng cáo đã xong hoặc không cần -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:or">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                                     AttributeId="environment:book_entry_ad_required"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                        </Apply>
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                                 AttributeId="environment:book_entry_ad_completed"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                 MustBePresent="true"/>
+                        </Apply>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+            <ObligationExpressions>
+                <ObligationExpression ObligationId="urn:ebook:obligation:create-reading-session" FulfillOn="Permit">
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:usage-tracking">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OPTIONAL</AttributeValue>
+                    </AttributeAssignmentExpression>
+                </ObligationExpression>
+            </ObligationExpressions>
+        </Rule>
+
+        <!-- POLICY 3 - rental access -->
+        <Rule RuleId="p3-permit-rental-read-full" Effect="Permit">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+                    <!-- rental_active -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                             AttributeId="subject:rental_active"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <!-- effective_access_type in {free, rental} -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:or">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                                     AttributeId="resource:effective_access_type"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#string"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">free</AttributeValue>
+                        </Apply>
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                                     AttributeId="resource:effective_access_type"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#string"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">rental</AttributeValue>
+                        </Apply>
+                    </Apply>
+
+                    <!-- quảng cáo đã xong hoặc không cần -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:or">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                                     AttributeId="environment:book_entry_ad_required"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                        </Apply>
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                                 AttributeId="environment:book_entry_ad_completed"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                 MustBePresent="true"/>
+                        </Apply>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+            <ObligationExpressions>
+                <ObligationExpression ObligationId="urn:ebook:obligation:create-reading-session" FulfillOn="Permit">
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:usage-tracking">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">REQUIRED</AttributeValue>
+                    </AttributeAssignmentExpression>
+                </ObligationExpression>
+            </ObligationExpressions>
+        </Rule>
+    </Policy>
+
+    <!-- =============================================================== -->
+    <!-- POLICY 4 + 6: ONGOING session                                    -->
+    <!-- - Policy 4: hết hạn thuê thì ngắt ngay (on-A0 / on-C0)           -->
+    <!-- - Policy 6: quảng cáo định kỳ trong phiên đọc (on-B2)            -->
+    <!-- =============================================================== -->
+    <Policy
+        PolicyId="policy-4-6-continue-read-ongoing"
+        Version="1.0.0"
+        RuleCombiningAlgId="urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-overrides">
+
+        <Target>
+            <AnyOf>
+                <AllOf>
+                    <!-- action = continue_read -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">continue_read</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action"
+                                             AttributeId="action:id"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Match>
+
+                    <!-- phase = ONGOING -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ONGOING</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:phase"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Match>
+                </AllOf>
+            </AnyOf>
+        </Target>
+
+        <!-- POLICY 4 - nếu phiên rental mà rental_active = false thì revoke ngay -->
+        <Rule RuleId="p4-deny-rental-expired" Effect="Deny">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                             AttributeId="resource:session_active"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                                 AttributeId="resource:session_access_path"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#string"
+                                                 MustBePresent="true"/>
+                        </Apply>
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">RENTAL</AttributeValue>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                                 AttributeId="subject:rental_active"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                 MustBePresent="true"/>
+                        </Apply>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+            <ObligationExpressions>
+                <ObligationExpression ObligationId="urn:ebook:obligation:revoke-reading-session" FulfillOn="Deny">
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:revoked-reason">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">rental_expired</AttributeValue>
+                    </AttributeAssignmentExpression>
+                </ObligationExpression>
+            </ObligationExpressions>
+        </Rule>
+
+        <!-- POLICY 6 - quảng cáo đã đến hạn mà chưa hoàn thành chu kỳ => pause -->
+        <Rule RuleId="p6-deny-when-periodic-ad-is-due-and-incomplete" Effect="Deny">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                             AttributeId="resource:session_active"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:periodic_ad_required"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:periodic_ad_due"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                                 AttributeId="environment:periodic_ad_completed_for_cycle"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                 MustBePresent="true"/>
+                        </Apply>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+            <ObligationExpressions>
+                <ObligationExpression ObligationId="urn:ebook:obligation:create-periodic-ad-log-and-pause-session" FulfillOn="Deny">
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:session-status">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">PAUSED_FOR_AD</AttributeValue>
+                    </AttributeAssignmentExpression>
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:ad-log-status">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">PENDING</AttributeValue>
+                    </AttributeAssignmentExpression>
+                </ObligationExpression>
+            </ObligationExpressions>
+        </Rule>
+
+        <!-- Cho đọc tiếp bình thường nếu:
+             - session_active = true
+             - nếu là RENTAL thì rental_active vẫn true
+             - chưa đến hạn quảng cáo hoặc không cần quảng cáo -->
+        <Rule RuleId="p4-p6-permit-continue-read-normal" Effect="Permit">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                             AttributeId="resource:session_active"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <!-- session_access_path = PURCHASE / SHARED / RENTAL(active) -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:or">
+
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                                     AttributeId="resource:session_access_path"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#string"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">PURCHASE</AttributeValue>
+                        </Apply>
+
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                                     AttributeId="resource:session_access_path"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#string"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">SHARED</AttributeValue>
+                        </Apply>
+
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                                    <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                                         AttributeId="resource:session_access_path"
+                                                         DataType="http://www.w3.org/2001/XMLSchema#string"
+                                                         MustBePresent="true"/>
+                                </Apply>
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">RENTAL</AttributeValue>
+                            </Apply>
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                                     AttributeId="subject:rental_active"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                        </Apply>
+                    </Apply>
+
+                    <!-- Không bị chặn bởi periodic ad -->
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:or">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                                     AttributeId="environment:periodic_ad_required"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                        </Apply>
+
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                                <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                                     AttributeId="environment:periodic_ad_due"
+                                                     DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                     MustBePresent="true"/>
+                            </Apply>
+                        </Apply>
+                    </Apply>
+                </Apply>
+            </Condition>
+        </Rule>
+
+        <!-- Nếu periodic ad đã hoàn thành cho chu kỳ hiện tại thì cho đọc tiếp
+             và PEP/App phải resume session + tính next_ad_due_at mới -->
+        <Rule RuleId="p6-permit-after-periodic-ad-completed" Effect="Permit">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                             AttributeId="resource:session_active"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:periodic_ad_required"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:periodic_ad_due"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:periodic_ad_completed_for_cycle"
+                                             DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                             MustBePresent="true"/>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+            <ObligationExpressions>
+                <ObligationExpression ObligationId="urn:ebook:obligation:resume-session-and-advance-next-ad-due" FulfillOn="Permit">
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:session-status">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ACTIVE</AttributeValue>
+                    </AttributeAssignmentExpression>
+                </ObligationExpression>
+            </ObligationExpressions>
+        </Rule>
+    </Policy>
+
+    <!-- =============================================================== -->
+    <!-- POLICY 3 (phần postUpdate): khi kết thúc session rental thì ghi usage -->
+    <!-- Dùng action = end_read, phase = POST để mô hình hóa A3 dễ test hơn -->
+    <!-- =============================================================== -->
+    <Policy
+        PolicyId="policy-3-end-read-post"
+        Version="1.0.0"
+        RuleCombiningAlgId="urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-unless-permit">
+
+        <Target>
+            <AnyOf>
+                <AllOf>
+                    <!-- action = end_read -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">end_read</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action"
+                                             AttributeId="action:id"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Match>
+
+                    <!-- phase = POST -->
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">POST</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="environment:phase"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Match>
+                </AllOf>
+            </AnyOf>
+        </Target>
+
+        <!-- Kết thúc session rental -> ghi usage record + cleanup session -->
+        <Rule RuleId="p3-permit-rental-end-read-post-update" Effect="Permit">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                             AttributeId="resource:session_access_path"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Apply>
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">RENTAL</AttributeValue>
+                </Apply>
+            </Condition>
+
+            <ObligationExpressions>
+                <ObligationExpression ObligationId="urn:ebook:obligation:write-usage-record" FulfillOn="Permit">
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:usage-source">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">RENTAL</AttributeValue>
+                    </AttributeAssignmentExpression>
+                </ObligationExpression>
+                <ObligationExpression ObligationId="urn:ebook:obligation:close-session" FulfillOn="Permit">
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:final-status">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ENDED</AttributeValue>
+                    </AttributeAssignmentExpression>
+                </ObligationExpression>
+            </ObligationExpressions>
+        </Rule>
+
+        <!-- Với session không phải rental, vẫn cho cleanup bình thường -->
+        <Rule RuleId="permit-non-rental-end-read-cleanup" Effect="Permit">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                                 AttributeId="resource:session_access_path"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#string"
+                                                 MustBePresent="true"/>
+                        </Apply>
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">RENTAL</AttributeValue>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+            <ObligationExpressions>
+                <ObligationExpression ObligationId="urn:ebook:obligation:close-session" FulfillOn="Permit">
+                    <AttributeAssignmentExpression AttributeId="urn:ebook:obligation:final-status">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ENDED</AttributeValue>
+                    </AttributeAssignmentExpression>
+                </ObligationExpression>
+            </ObligationExpressions>
+        </Rule>
+    </Policy>
+</PolicySet>

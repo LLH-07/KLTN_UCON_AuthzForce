@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Request xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+         CombinedDecision="false"
+         ReturnPolicyIdList="false">
+    <Attributes Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject">
+        <Attribute AttributeId="subject:rental_active" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">false</AttributeValue>
+        </Attribute>
+    </Attributes>
+
+    <Attributes Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action">
+        <Attribute AttributeId="action:id" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">continue_read</AttributeValue>
+        </Attribute>
+    </Attributes>
+
+    <Attributes Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource">
+        <Attribute AttributeId="resource:session_active" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">true</AttributeValue>
+        </Attribute>
+        <Attribute AttributeId="resource:session_access_path" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">RENTAL</AttributeValue>
+        </Attribute>
+    </Attributes>
+
+    <Attributes Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment">
+        <Attribute AttributeId="environment:phase" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ONGOING</AttributeValue>
+        </Attribute>
+        <Attribute AttributeId="environment:periodic_ad_required" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">false</AttributeValue>
+        </Attribute>
+        <Attribute AttributeId="environment:periodic_ad_due" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">false</AttributeValue>
+        </Attribute>
+        <Attribute AttributeId="environment:periodic_ad_completed_for_cycle" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">false</AttributeValue>
+        </Attribute>
+    </Attributes>
+</Request>

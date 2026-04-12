@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Request xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+         CombinedDecision="false"
+         ReturnPolicyIdList="false">
+    <Attributes Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject">
+        <Attribute AttributeId="subject:purchase_active" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">false</AttributeValue>
+        </Attribute>
+        <Attribute AttributeId="subject:shared_active" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">false</AttributeValue>
+        </Attribute>
+        <Attribute AttributeId="subject:rental_active" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">true</AttributeValue>
+        </Attribute>
+    </Attributes>
+
+    <Attributes Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action">
+        <Attribute AttributeId="action:id" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">read_full</AttributeValue>
+        </Attribute>
+    </Attributes>
+
+    <Attributes Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource">
+        <Attribute AttributeId="resource:effective_access_type" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">rental</AttributeValue>
+        </Attribute>
+    </Attributes>
+
+    <Attributes Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment">
+        <Attribute AttributeId="environment:phase" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">PRE</AttributeValue>
+        </Attribute>
+        <Attribute AttributeId="environment:book_entry_ad_required" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">true</AttributeValue>
+        </Attribute>
+        <Attribute AttributeId="environment:book_entry_ad_completed" IncludeInResult="false">
+            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">true</AttributeValue>
+        </Attribute>
+    </Attributes>
+</Request>
