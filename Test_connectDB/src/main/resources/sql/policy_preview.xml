@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PolicySet xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+           PolicySetId="root-preview-policy"
+           Version="1.0"
+           PolicyCombiningAlgId="urn:oasis:names:tc:xacml:1.0:policy-combining-algorithm:first-applicable">
+    <Target/>
+
+    <Policy PolicyId="preview-read-policy"
+            Version="1.0"
+            RuleCombiningAlgId="urn:oasis:names:tc:xacml:1.0:rule-combining-algorithm:first-applicable">
+        <Target>
+            <AnyOf>
+                <AllOf>
+                    <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">read</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:action"
+                                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Match>
+                </AllOf>
+            </AnyOf>
+        </Target>
+
+        <Rule RuleId="permit-preview" Effect="Permit">
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:or">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ACTIVE</AttributeValue>
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                                 AttributeId="subject:status"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#string"
+                                                 MustBePresent="true"/>
+                        </Apply>
+
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:boolean-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#boolean">true</AttributeValue>
+                            <AttributeDesignator Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
+                                                 AttributeId="subject:is_visitor"
+                                                 DataType="http://www.w3.org/2001/XMLSchema#boolean"
+                                                 MustBePresent="true"/>
+                        </Apply>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ACTIVE</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                             AttributeId="resource:status"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">PREVIEW</AttributeValue>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="env:access_path"
+                                             DataType="http://www.w3.org/2001/XMLSchema#string"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:integer-less-than-or-equal">
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:environment"
+                                             AttributeId="env:requested_chunk"
+                                             DataType="http://www.w3.org/2001/XMLSchema#integer"
+                                             MustBePresent="true"/>
+                        <AttributeDesignator Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
+                                             AttributeId="resource:preview_chunk_limit"
+                                             DataType="http://www.w3.org/2001/XMLSchema#integer"
+                                             MustBePresent="true"/>
+                    </Apply>
+
+                </Apply>
+            </Condition>
+        </Rule>
+
+        <Rule RuleId="deny-others" Effect="Deny"/>
+    </Policy>
+</PolicySet>
+
+<!-- 
+Đây là file policy XML mẫu, được lưu trong database và sẽ được custom policy provider đọc vào PDP engine của AuthzForce để đánh giá request.
+
+Bản cuối cùng phải dùng:
+- string-one-and-only
+- boolean-one-and-only
+- integer-one-and-only
+trong Condition
+
+vì stacktrace cuối cùng của bạn cho thấy AuthzForce báo:
+- string-equal đang nhận bag<string> thay vì string. Đây là lỗi XACML rất điển hình:
+    + AttributeDesignator trong Condition trả bag
+    + function như string-equal cần primitive value nên phải ép về singleton bằng *-one-and-only
+-->

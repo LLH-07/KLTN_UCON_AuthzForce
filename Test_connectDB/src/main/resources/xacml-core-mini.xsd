@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+           xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+
+    <xs:simpleType name="VersionType">
+        <xs:restriction base="xs:string"/>
+    </xs:simpleType>
+
+    <xs:complexType name="PolicySetType">
+        <xs:sequence>
+            <xs:any minOccurs="0" maxOccurs="unbounded" processContents="lax"/>
+        </xs:sequence>
+        <xs:anyAttribute processContents="lax"/>
+    </xs:complexType>
+
+    <xs:element name="PolicySet" type="PolicySetType"/>
+</xs:schema>
+
+<!--
+Đây cũng là schema tối thiểu cho demo, dùng để thỏa mãn các type XACML mà pdp.xsd tham chiếu, như:
+- VersionType
+- PolicySet
+
+Nó không phải toàn bộ XACML schema chính thức.
+Nó chỉ đủ để runtime không nổ ở bước load schema.
+-->
