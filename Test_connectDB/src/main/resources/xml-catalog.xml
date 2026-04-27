@@ -8,7 +8,7 @@
 </catalog>
 
 <!-- 
-File này là XML Catalog, như một bản dồ cho XML parser biết rằng khi gặp reference đến "pdp-ext-base.xsd" thì hãy đi tìm file ở đường dẫn cụ thể trên máy tính, 
+File này là XML Catalog, như một bản đồ cho XML parser biết rằng khi gặp reference đến "pdp-ext-base.xsd" thì hãy đi tìm file ở đường dẫn cụ thể trên máy tính, 
 và khi gặp reference đến "urn:oasis:names:tc:xacml:3.0:core:schema:wd-17" thì hãy dùng file xacml-core-mini.xsd ở đường dẫn cụ thể.
 
 Nếu không có catalog, hoặc catalog sai, có thể sẽ gặp lỗi như:

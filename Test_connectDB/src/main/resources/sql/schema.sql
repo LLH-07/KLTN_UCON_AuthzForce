@@ -3,14 +3,32 @@ drop table if exists xacml_root_pointer;
 drop table if exists users_demo;
 drop table if exists books;
 drop table if exists reading_sessions;
+drop function if exists touch_updated_at();
 
 create table xacml_policies (
     policy_id        varchar(200) not null,
     version_no       varchar(30)  not null,
     xml_body         text         not null,
     is_active        boolean      not null default true,
+    -- Auto reload uses this lightweight timestamp instead of reading full XML every time.
+    updated_at       timestamptz  not null default now(),
     primary key (policy_id, version_no)
 );
+
+create function touch_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+    new.updated_at = now();
+    return new;
+end;
+$$;
+
+create trigger touch_xacml_policies_updated_at
+before update on xacml_policies
+for each row
+execute function touch_updated_at();
 
 create table xacml_root_pointer (
     root_policy_id      varchar(200) not null,
