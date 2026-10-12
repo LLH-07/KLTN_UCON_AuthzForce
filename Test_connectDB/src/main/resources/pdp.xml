@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pdp xmlns="http://authzforce.github.io/core/xmlns/pdp/8"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xmlns:db="urn:demo:authzforce:dbprovider"
+     version="8.1">
+
+    <policyProvider xsi:type="db:PostgresPolicyProviderDescriptor"
+                    jdbcUrl="jdbc:postgresql://localhost:5432/ebook_demo?currentSchema=public"
+                    jdbcUser="postgres"
+                    jdbcPassword="12345678"/>
+
+    <rootPolicyRef policySet="true" version="1.0">root-preview-policy</rootPolicyRef>
+</pdp>
+
+<!-- 
+File cấu hình PDP của AuthzForce
+Cụ thể hơn, File này định nghĩa một PDP (Policy Decision Point) sử dụng custom policy provider để đọc chính sách từ database. Cấu hình này sẽ được AuthzForce Core sử dụng để khởi tạo PDP engine.
+
+Các phần chính của file:
+- `policyProvider`: định nghĩa một policy provider sử dụng custom implementation (PostgresPolicyProviderDescriptor) với các tham số kết nối database (jdbcUrl, jdbcUser, jdbcPassword).
+- `rootPolicyRef`: tham chiếu đến root policy hoặc policy set sẽ được sử dụng để đánh giá các request. 
+    + Trong trường hợp này, root policy có ID "root-preview-policy" và được đánh dấu là policy set (có thể chứa nhiều policy con).
+- Các extension khác (attribute providers, decision cache) có thể được thêm vào nếu cần thiết, nhưng trong cấu hình này chỉ tập trung vào policy provider.
+
+Trong demo này, có 2 ý quan trọng:
+- Khai báo custom policy provider để đọc chính sách từ database, thay vì từ file XML như mặc định.
+    `
+    <policyProvider xsi:type="db:PostgresPolicyProviderDescriptor"
+                jdbcUrl="..."
+                jdbcUser="..."
+                jdbcPassword="..."/>
+    `
+- Chỉ định root policy
+    `
+    <rootPolicyRef policySet="true" version="1.0">root-preview-policy</rootPolicyRef>
+    `
+    + AuthzForce biết root policy có ID/ version nào để tìm trong database, rồi load vào PDP engine để đánh giá request.
+    + Custome provider phải giải mã được
+    + Nếu không có rootPolicyRef, AuthzForce sẽ thử dùng getCandidateRootPolicy() của provider. Điều này được mô tả ngay trong Pdp.java của AuthzForce
+
+-->

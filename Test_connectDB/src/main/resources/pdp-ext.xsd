@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:authz-ext="http://authzforce.github.io/xmlns/pdp/ext/3"
+           targetNamespace="urn:demo:authzforce:dbprovider"
+           xmlns="urn:demo:authzforce:dbprovider"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+
+    <xs:import namespace="http://authzforce.github.io/xmlns/pdp/ext/3"
+               schemaLocation="pdp-ext-base.xsd"/>
+
+    <xs:complexType name="PostgresPolicyProviderDescriptor">
+        <xs:complexContent>
+            <xs:extension base="authz-ext:AbstractPolicyProvider">
+                <xs:attribute name="jdbcUrl" type="xs:string" use="required"/>
+                <xs:attribute name="jdbcUser" type="xs:string" use="required"/>
+                <xs:attribute name="jdbcPassword" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+</xs:schema>
+
+<!-- 
+File này định nghĩa XSD custom
+
+Nó định nghĩa type: PostgresPolicyProviderDescriptor, kế thừa từ AbstractPolicyProvider của AuthzForce, với các attribute cần thiết để kết nối database (jdbcUrl, jdbcUser, jdbcPassword).
+
+Nói dễ hiểu: Nó dạy cho Authzforce biết `xsi:type="db:PostgresPolicyProviderDescriptor"` trong pdp.xml có nghĩa là gì, và cần các attribute nào để khởi tạo provider này.
+-->

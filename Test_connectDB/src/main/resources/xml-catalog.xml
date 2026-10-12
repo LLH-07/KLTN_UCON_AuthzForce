@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+    <uri name="pdp-ext-base.xsd"
+         uri="file:///D:/Work/Study/Learning/KLTN/Ucon_ABC/test/02/src/main/resources/pdp-ext-base.xsd"/>
+
+    <uri name="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+         uri="file:///D:/Work/Study/Learning/KLTN/Ucon_ABC/test/02/src/main/resources/xacml-core-mini.xsd"/>
+</catalog>
+
+<!-- 
+File này là XML Catalog, như một bản đồ cho XML parser biết rằng khi gặp reference đến "pdp-ext-base.xsd" thì hãy đi tìm file ở đường dẫn cụ thể trên máy tính, 
+và khi gặp reference đến "urn:oasis:names:tc:xacml:3.0:core:schema:wd-17" thì hãy dùng file xacml-core-mini.xsd ở đường dẫn cụ thể.
+
+Nếu không có catalog, hoặc catalog sai, có thể sẽ gặp lỗi như:
+- Không resolve được AbstractPolicyProviderDescriptor vì không tìm được pdp-ext-base.xsd, dẫn đến lỗi khi khởi tạo PDP engine.
+- Không reassolve được VersionType hoặc PolicySet vì không tìm được XACML schema, dẫn đến lỗi khi load root policy XML từ database.
+
+-->

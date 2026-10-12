@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="http://authzforce.github.io/xmlns/pdp/ext/3"
+           targetNamespace="http://authzforce.github.io/xmlns/pdp/ext/3"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+
+    <xs:complexType name="AbstractPdpExtension" abstract="true"/>
+
+    <xs:complexType name="AbstractAttributeProvider" abstract="true">
+        <xs:complexContent>
+            <xs:extension base="tns:AbstractPdpExtension"/>
+        </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="AbstractPolicyProvider" abstract="true">
+        <xs:complexContent>
+            <xs:extension base="tns:AbstractPdpExtension"/>
+        </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="AbstractDecisionCache" abstract="true">
+        <xs:complexContent>
+            <xs:extension base="tns:AbstractPdpExtension"/>
+        </xs:complexContent>
+    </xs:complexType>
+</xs:schema>
+
+<!-- 
+Đây là file stub XSD định nghĩa các type cơ sở cho custom extensions của PDP, như AbstractPolicyProvider, AbstractAttributeProvider, AbstractDecisionCache. Mọi custom provider sau này sẽ kế thừa từ các type này.
+
+Nó giúp giải quyết runtime schema validation
+
+Định nghĩa tối thiếu các abstract type như:
+- AbstractPdpExtension: base type cho mọi extension của PDP
+- AbstractAttributeProvider: base type cho custom attribute provider, kế thừa từ AbstractPdpExtension
+- AbstractPolicyProvider: base type cho custom policy provider, kế thừa từ AbstractPdpExtension
+- AbstractDecisionCache: base type cho custom decision cache, kế thừa từ AbstractPdpExtension
+
+LƯU Ý:
+- Đây là file stub/workaround cho demo, không phải cách đẹp nhất cho production.
+- Production thì nên:
+    + Dùng schema chính thức đầy đủ
+    + hoặc đóng gói extension XSD đúng chuẩn hơn
+-->
